@@ -8,12 +8,12 @@ import {
   PermissionsAndroid,
   TouchableOpacity,
   Clipboard,
-  Pressable,
+  Pressable, // Keep Pressable for the display notification button
 } from 'react-native';
-import notifee from '@notifee/react-native';
+import notifee, {EventType, AndroidImportance} from '@notifee/react-native';
 
 import messaging from '@react-native-firebase/messaging';
-import {getApp} from '@react-native-firebase/app';
+import {getApp} from '@react-native-firebase/app'; // Ensure getApp is imported if used
 
 /**
  * Main App component for handling Firebase notifications in React Native (Android).
@@ -57,6 +57,7 @@ function App() {
       }
     } else {
       // Fallback for non-Android platforms (though iOS code is not required by user, it's good practice)
+      // Use getApp().messaging() as per user's provided code for consistency
       const authStatus = await getApp().messaging().requestPermission();
       const enabled =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -82,6 +83,7 @@ function App() {
    */
   const getFCMToken = async () => {
     try {
+      // Use getApp().messaging() as per user's provided code for consistency
       const token = await getApp().messaging().getToken();
       if (token) {
         setFcmToken(token);
@@ -108,6 +110,53 @@ function App() {
   };
 
   /**
+   * Displays a local notification using Notifee with actionable buttons.
+   * This function creates a notification channel (if not already existing) and then
+   * displays a notification with 'Reply' and 'Mark as Read' actions.
+   */
+  const onDisplayNotification = async () => {
+    // Request permissions (required for iOS, good practice for Android for direct display)
+    await notifee.requestPermission();
+
+    // Create a channel (required for Android 8.0+)
+    const channelId = await notifee.createChannel({
+      id: 'default',
+      name: 'Default Channel',
+      importance: AndroidImportance.HIGH, // Set importance for head-up notifications
+    });
+
+    // Display a notification with actions
+    await notifee.displayNotification({
+      title: 'New Message from Sarah',
+      body: 'Hey, are you free for a quick call today?',
+      android: {
+        channelId,
+        smallIcon: 'ic_launcher',
+        actions: [
+          {
+            title: 'Reply',
+            icon: 'https://placehold.co/128x128/000000/FFFFFF?text=R', // Placeholder icon for reply
+            pressAction: {
+              id: 'reply', // Unique ID
+            },
+            // Input field to the reply action
+            input: {
+              placeholder: 'Type your reply...',
+            },
+          },
+          {
+            title: 'Mark as Read',
+            icon: 'https://placehold.co/128x128/000000/FFFFFF?text=M', // Placeholder icon for mark as read
+            pressAction: {
+              id: 'mark-as-read', // Unique ID for this action
+            },
+          },
+        ],
+      },
+    });
+  };
+
+  /**
    * useEffect hook to handle side effects related to Firebase messaging.
    * It requests user permission on component mount and sets up listeners for:
    * - Foreground messages (onMessage): triggered when a notification is received while the app is open.
@@ -115,13 +164,18 @@ function App() {
    * and the app is in the background.
    * - Initial notification (getInitialNotification): checks if the app was launched by a notification
    * from a quit state.
+   * - Notifee foreground events (onForegroundEvent): handles interactions with Notifee-displayed notifications
+   * while the app is in the foreground.
    * Returns a cleanup function to unsubscribe from listeners when the component unmounts.
    */
   useEffect(() => {
+    // Initialize Firebase App if not already done. The getApp() call is typically handled by
+    // `@react-native-firebase/app` setup, but explicitly calling it here as per user's previous code.
     getApp();
     requestUserPermission();
 
     // Listener for messages received while the app is in the foreground.
+    // This is for FCM messages, not for Notifee local notifications.
     const unsubscribeOnMessage = getApp()
       .messaging()
       .onMessage(async remoteMessage => {
@@ -130,12 +184,12 @@ function App() {
           JSON.stringify(remoteMessage),
         );
         setNotificationMessage(
-          `Foreground Notification: ${
-            remoteMessage.notification?.title || ''
-          } - ${remoteMessage.notification?.body || ''}`,
+          `FCM Foreground: ${remoteMessage.notification?.title || ''} - ${
+            remoteMessage.notification?.body || ''
+          }`,
         );
         Alert.alert(
-          remoteMessage.notification?.title || 'New Notification',
+          remoteMessage.notification?.title || 'New FCM Notification',
           remoteMessage.notification?.body || 'You have a new message!',
           [{text: 'OK', onPress: () => console.log('OK Pressed')}],
         );
@@ -150,7 +204,7 @@ function App() {
           remoteMessage,
         );
         setNotificationMessage(
-          `Opened from Background/Quit: ${
+          `Opened from Background/Quit (FCM): ${
             remoteMessage.notification?.title || ''
           } - ${remoteMessage.notification?.body || ''}`,
         );
@@ -168,46 +222,100 @@ function App() {
             remoteMessage,
           );
           setNotificationMessage(
-            `Opened from Quit: ${remoteMessage.notification?.title || ''} - ${
-              remoteMessage.notification?.body || ''
-            }`,
+            `Opened from Quit (FCM): ${
+              remoteMessage.notification?.title || ''
+            } - ${remoteMessage.notification?.body || ''}`,
           );
           // You can add initial navigation logic here based on remoteMessage.data
         }
       });
 
+    // Notifee foreground event listener: This is called when a Notifee-displayed notification
+    // is interacted with while the app is in the foreground.
+    const unsubscribeNotifeeForegroundEvent = notifee.onForegroundEvent(
+      ({type, detail}) => {
+        switch (type) {
+          case EventType.PRESS: // This event is called when the main body of a Notifee notification is pressed.
+            console.log(
+              'Notifee foreground event: User pressed notification body',
+              detail.notification,
+            );
+            setNotificationMessage(
+              `Notifee Pressed: ${detail.notification?.title || ''} - ${
+                detail.notification?.body || ''
+              }`,
+            );
+            // Handle notification body press when app is in foreground
+            // detail.notification.data will contain the data you passed to displayNotification
+            break;
+          case EventType.DISMISSED: // This event is called when a Notifee notification is dismissed (e.g., swiped away).
+            console.log(
+              'Notifee event: EventType.DISMISSED',
+              detail.notification,
+            );
+            setNotificationMessage(
+              `Notifee Dismissed: ${detail.notification?.title || ''}`,
+            );
+            break;
+          case EventType.DELIVERED: // This event is called when a Notifee notification is successfully delivered/displayed to the user.
+            console.log(
+              'Notifee event: EventType.DELIVERED',
+              detail.notification,
+            );
+            // No need to update message here as it's just about delivery
+            break;
+          case EventType.ACTION_PRESS: // This event is called when a user presses an action button on a Notifee notification.
+            console.log(
+              'Notifee event: EventType.ACTION_PRESS',
+              detail.notification,
+              detail.pressAction,
+            );
+            // This is where you handle the action button press!
+            // detail.pressAction.id will be 'reply' or 'mark-as-read' as defined in onDisplayNotification
+            // detail.input will contain the text typed by the user if it's an input action
+            if (detail.pressAction?.id === 'reply') {
+              const replyText = detail.input;
+              console.log('User replied:', replyText);
+              setNotificationMessage(
+                `Action: Reply -> "${replyText || 'No reply'}" from Notifee: ${
+                  detail.notification?.title
+                }`,
+              );
+              Alert.alert(
+                'Reply Action',
+                `You replied: "${replyText || 'No reply'}"`,
+              );
+            } else if (detail.pressAction?.id === 'mark-as-read') {
+              console.log('User marked as read.');
+              setNotificationMessage(
+                `Action: Marked as Read from Notifee: ${detail.notification?.title}`,
+              );
+              Alert.alert(
+                'Mark as Read Action',
+                'Notification marked as read.',
+              );
+            } else if (detail.pressAction?.id === 'default') {
+              console.log('default action');
+              Alert.alert('Default Action', 'Notification marked as read.');
+            }
+            break;
+          case EventType.APP_BLOCKED: // This event is called if the app's notification settings are blocked by the user.
+            console.log('Notifee event: EventType.APP_BLOCKED', detail.blocked);
+            setNotificationMessage(
+              `App Notifications Blocked: ${detail.blocked ? 'Yes' : 'No'}`,
+            );
+            break;
+        }
+      },
+    );
+
     // Cleanup function: Unsubscribe from all listeners when the component unmounts to prevent memory leaks.
     return () => {
       unsubscribeOnMessage();
       unsubscribeOnNotificationOpenedApp();
+      unsubscribeNotifeeForegroundEvent(); // Clean up Notifee listener
     };
   }, []); // Empty dependency array ensures this effect runs only once on component mount
-
-  // display a notification on press
-  const onDisplayNotification = async () => {
-    // Request permissions (required for iOS)
-    await notifee.requestPermission();
-
-    // Create a channel (required for Android)
-    const channelId = await notifee.createChannel({
-      id: 'default',
-      name: 'Default Channel',
-    });
-
-    // Display a notification
-    await notifee.displayNotification({
-      title: 'Notification Title',
-      body: 'Main body content of the notification',
-      android: {
-        channelId: channelId,
-        smallIcon: 'ic_launcher', // optional, defaults to 'ic_launcher'.
-        // pressAction is needed if you want the notification to open the app when pressed
-        pressAction: {
-          id: 'default',
-        },
-      },
-    });
-  };
 
   return (
     <View style={styles.container}>
@@ -228,21 +336,23 @@ function App() {
         ) : null}
       </View>
 
+      {/* Button to display a Notifee notification with actions */}
+      <Pressable
+        style={styles.displayNotificationBtn}
+        onPress={onDisplayNotification}>
+        <Text style={styles.buttonText}>Show Actionable Notifee</Text>
+      </Pressable>
+
       <View style={styles.card}>
-        <Text style={styles.label}>Last Received Notification:</Text>
+        <Text style={styles.label}>Last Received Notification/Action:</Text>
         <Text style={styles.messageText}>
-          {notificationMessage || 'Waiting for a notification...'}
+          {notificationMessage || 'Waiting for a notification or action...'}
         </Text>
       </View>
 
       <Text style={styles.footerText}>
         Ensure your Firebase project is correctly set up in Android Studio.
       </Text>
-      <Pressable
-        style={styles.displayNotificationBtn}
-        onPress={onDisplayNotification}>
-        <Text>Display a Notification</Text>
-      </Pressable>
     </View>
   );
 }
@@ -314,11 +424,22 @@ const styles = StyleSheet.create({
   },
   displayNotificationBtn: {
     height: 44,
-    width: 160,
+    width: 250, // Increased width to fit text
     marginTop: 12,
-    backgroundColor: 'gray',
+    backgroundColor: '#007BFF', // Match other button style
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
