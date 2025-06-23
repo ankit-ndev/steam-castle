@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "304038293605",
+    "project_id": "commshub-idfc",
+    "storage_bucket": "commshub-idfc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:304038293605:android:5757fe595e18710d0e568c",
+        "android_client_info": {
+          "package_name": "com.example.exampleapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPqOBYf1sHJ8LTdaT4rjmgXYuvmijrl80"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:304038293605:android:b66786f9be027e9b0e568c",
+        "android_client_info": {
+          "package_name": "com.rnprojectname"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPqOBYf1sHJ8LTdaT4rjmgXYuvmijrl80"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:304038293605:android:24b6f298652371920e568c",
+        "android_client_info": {
+          "package_name": "com.steamcastle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPqOBYf1sHJ8LTdaT4rjmgXYuvmijrl80"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
