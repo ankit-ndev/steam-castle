@@ -8,10 +8,12 @@ import {
   PermissionsAndroid,
   TouchableOpacity,
   Clipboard,
+  Pressable,
 } from 'react-native';
 import notifee from '@notifee/react-native';
 
 import messaging from '@react-native-firebase/messaging';
+import {getApp} from '@react-native-firebase/app';
 
 /**
  * Main App component for handling Firebase notifications in React Native (Android).
@@ -55,7 +57,7 @@ function App() {
       }
     } else {
       // Fallback for non-Android platforms (though iOS code is not required by user, it's good practice)
-      const authStatus = await messaging().requestPermission();
+      const authStatus = await getApp().messaging().requestPermission();
       const enabled =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
@@ -80,7 +82,7 @@ function App() {
    */
   const getFCMToken = async () => {
     try {
-      const token = await messaging().getToken();
+      const token = await getApp().messaging().getToken();
       if (token) {
         setFcmToken(token);
         console.log('FCM Token:', token);
@@ -116,29 +118,33 @@ function App() {
    * Returns a cleanup function to unsubscribe from listeners when the component unmounts.
    */
   useEffect(() => {
+    getApp();
     requestUserPermission();
 
     // Listener for messages received while the app is in the foreground.
-    const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
-      console.log(
-        'FCM Message received in foreground:',
-        JSON.stringify(remoteMessage),
-      );
-      setNotificationMessage(
-        `Foreground Notification: ${
-          remoteMessage.notification?.title || ''
-        } - ${remoteMessage.notification?.body || ''}`,
-      );
-      Alert.alert(
-        remoteMessage.notification?.title || 'New Notification',
-        remoteMessage.notification?.body || 'You have a new message!',
-        [{text: 'OK', onPress: () => console.log('OK Pressed')}],
-      );
-    });
+    const unsubscribeOnMessage = getApp()
+      .messaging()
+      .onMessage(async remoteMessage => {
+        console.log(
+          'FCM Message received in foreground:',
+          JSON.stringify(remoteMessage),
+        );
+        setNotificationMessage(
+          `Foreground Notification: ${
+            remoteMessage.notification?.title || ''
+          } - ${remoteMessage.notification?.body || ''}`,
+        );
+        Alert.alert(
+          remoteMessage.notification?.title || 'New Notification',
+          remoteMessage.notification?.body || 'You have a new message!',
+          [{text: 'OK', onPress: () => console.log('OK Pressed')}],
+        );
+      });
 
     // Listener for when a notification is tapped by the user, and the app is in the background.
-    const unsubscribeOnNotificationOpenedApp =
-      messaging().onNotificationOpenedApp(remoteMessage => {
+    const unsubscribeOnNotificationOpenedApp = getApp()
+      .messaging()
+      .onNotificationOpenedApp(remoteMessage => {
         console.log(
           'Notification caused app to open from background state:',
           remoteMessage,
@@ -152,7 +158,8 @@ function App() {
       });
 
     // Checks if the app was opened by a notification when it was initially launched from a quit state.
-    messaging()
+    getApp()
+      .messaging()
       .getInitialNotification()
       .then(remoteMessage => {
         if (remoteMessage) {
@@ -175,6 +182,32 @@ function App() {
       unsubscribeOnNotificationOpenedApp();
     };
   }, []); // Empty dependency array ensures this effect runs only once on component mount
+
+  // display a notification on press
+  const onDisplayNotification = async () => {
+    // Request permissions (required for iOS)
+    await notifee.requestPermission();
+
+    // Create a channel (required for Android)
+    const channelId = await notifee.createChannel({
+      id: 'default',
+      name: 'Default Channel',
+    });
+
+    // Display a notification
+    await notifee.displayNotification({
+      title: 'Notification Title',
+      body: 'Main body content of the notification',
+      android: {
+        channelId: channelId,
+        smallIcon: 'ic_launcher', // optional, defaults to 'ic_launcher'.
+        // pressAction is needed if you want the notification to open the app when pressed
+        pressAction: {
+          id: 'default',
+        },
+      },
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -205,6 +238,11 @@ function App() {
       <Text style={styles.footerText}>
         Ensure your Firebase project is correctly set up in Android Studio.
       </Text>
+      <Pressable
+        style={styles.displayNotificationBtn}
+        onPress={onDisplayNotification}>
+        <Text>Display a Notification</Text>
+      </Pressable>
     </View>
   );
 }
@@ -273,6 +311,14 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 30,
     textAlign: 'center',
+  },
+  displayNotificationBtn: {
+    height: 44,
+    width: 160,
+    marginTop: 12,
+    backgroundColor: 'gray',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
