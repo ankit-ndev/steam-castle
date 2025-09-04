@@ -157,6 +157,7 @@ function App() {
   };
 
   /**
+   * making small change with wrong commit message
    * useEffect hook to handle side effects related to Firebase messaging.
    * It requests user permission on component mount and sets up listeners for:
    * - Foreground messages (onMessage): triggered when a notification is received while the app is open.
